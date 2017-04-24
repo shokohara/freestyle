@@ -16,14 +16,29 @@
 
 package freestyle
 
+import cats.{ Applicative, Monad }
+import cats.free.{ Free, FreeApplicative}
 import scala.reflect.macros.blackbox.Context
 
-trait EffectLike[F[_]] {
-  final type FS[A] = FreeS.Par[F, A]
+trait EffectLike {
+  type FS[A]
+  type ParFS[A]
+  type SeqFS[A]
+  def seqMon: Monad[SeqFS]
+  def parApp: Applicative[ParFS]
+}
+
+trait FreeSLike[F[_]] extends EffectLike {
+  override final type FS[A] = FreeS.Par[F, A]
+  override final type ParFS[A] = FreeS.Par[F, A]
+  override final type SeqFS[A] = FreeS[F, A]
+
   final object FS {
-    final type Seq[A] = FreeS[F, A]
-    final type Par[A] = FreeS.Par[F, A]
+    final type Seq[A] = SeqFS[A]
+    final type Par[A] = ParFS[A]
   }
+  override final val seqMon: Monad[SeqFS] = freestyle.implicits.freestyleMonadForFreeS[F]
+  override final val parApp: Applicative[ParFS] = freestyle.implicits.freestyleApplicativeForFreeS[F]
 }
 
 object freeImpl {
@@ -69,7 +84,7 @@ object freeImpl {
       val wildcard = TypeDef(Modifiers(Flag.PARAM), typeNames.WILDCARD, List(), TypeBoundsTree(EmptyTree, EmptyTree))
       val ffTParam = TypeDef(Modifiers(Flag.PARAM), FF, List(wildcard), TypeBoundsTree(EmptyTree, EmptyTree))
       val ClassDef(mods, name, tparams, Template(parents, self, body)) = cls
-      ClassDef(mods, name, ffTParam :: tparams, Template(parents :+ tq"freestyle.EffectLike[$FF]", self, body))
+      ClassDef(mods, name, ffTParam :: tparams, Template(parents :+ tq"freestyle.FreeSLike[$FF]", self, body))
     }
 
     class Request(reqDef: DefDef) {

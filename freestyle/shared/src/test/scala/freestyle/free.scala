@@ -24,7 +24,7 @@ class freeTests extends WordSpec with Matchers {
 
   "the @free annotation" should {
 
-    import freestyle.implicits._
+    //import freestyle.implicits._
 
     "be rejected if applied to a non-abstract class" in {
       """@free class Foo { val x: Int}""" shouldNot compile
@@ -46,22 +46,20 @@ class freeTests extends WordSpec with Matchers {
       "implicitly[SCtors1[SCtors1.Op]]" should compile 
     }
 
-    "provide automatic implementations for smart constructors" in {
-      val s = SCtors1[SCtors1.Op]
-      val program = for {
-        a <- s.x(1)
-        b <- s.y(1)
+    val sumAlg = SCtors1[SCtors1.Op]
+    def program: sumAlg.SeqFS[Int] =
+      for {
+        a <- sumAlg.x(1)
+        b <- sumAlg.y(1)
       } yield a + b
+
+
+    "provide automatic implementations for smart constructors" in {
       "(program: FreeS[SCtors1.Op, Int])" should compile
     }
 
     "respond to implicit evidences with compilable runtimes" in {
       implicit val optionHandler = interps.optionHandler1
-      val s                      = SCtors1[SCtors1.Op]
-      val program = for {
-        a <- s.x(1)
-        b <- s.y(1)
-      } yield a + b
       program.exec[Option] shouldBe Option(2)
     }
 
