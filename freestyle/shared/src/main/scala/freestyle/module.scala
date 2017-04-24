@@ -19,9 +19,7 @@ package freestyle
 import scala.reflect.internal._
 import scala.reflect.macros.whitebox.Context
 
-trait FreeModuleLike {
-  type Op[A]
-}
+trait FreeModuleLike
 
 object openUnion {
 
@@ -52,9 +50,7 @@ object openUnion {
       // cs is a `@module` is the _class_ of the `object` extends from `FreeModuleLike`
       // Note that a trait's companion object has a _real_ class, unknown, to rule its behaviour.
       def isModuleFS(cs: ClassSymbol): Boolean =
-        cs.companion.asModule.moduleClass.asClass.baseClasses.exists {
-          case x: ClassSymbol => x.name == TypeName("FreeModuleLike")
-        }
+        cs.baseClasses.exists( _.name == TypeName("FreeModuleLike") )
 
       // cs: the trait annotated as `@module`
       def fromClass(cs: ClassSymbol): List[Type] =
@@ -127,7 +123,12 @@ object moduleImpl {
         q"$mods val $name: $eff[$LL, ..$args]"
     }
 
-    def mkCompanion( userTrait: ClassDef): ModuleDef = {
+    def mkModuleTrait(cls: ClassDef): ClassDef = {
+      val ClassDef(mods, name, tparams, Template(parents, self, body)) = cls
+      ClassDef(mods, name, tparams, Template(parents :+ tq"freestyle.FreeModuleLike", self, body))
+    }
+
+    def mkModuleObject( userTrait: ClassDef): ModuleDef = {
       val mod = userTrait.name
       val effVals: List[ValDef] = filterEffectVals(userTrait.impl)
 
@@ -139,7 +140,7 @@ object moduleImpl {
       val effArgs: List[ValDef] = effVals.map( v => toImplArg(v) )
 
       q"""
-        object ${mod.toTermName} extends FreeModuleLike {
+        object ${mod.toTermName} {
 
           import _root_.cats.data.Coproduct
 
@@ -165,10 +166,9 @@ object moduleImpl {
     annottees match {
       case Expr(cls: ClassDef) :: Nil =>
         if (cls.mods.hasFlag(Flag.TRAIT | Flag.ABSTRACT)) {
-          val userTrait = cls.duplicate
           q"""
-            $userTrait
-            ${mkCompanion(userTrait)}
+            ${mkModuleTrait(cls.duplicate)}
+            ${mkModuleObject(cls.duplicate)}
           """
         } else fail( s"$invalid in ${cls.name}. $abstractOnly")
 
